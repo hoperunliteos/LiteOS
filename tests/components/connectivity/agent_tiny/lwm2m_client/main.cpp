@@ -7,6 +7,8 @@
 #include "test_object_firmware.h"
 #include "test_connection.h"
 #include "test_object_connectivity_stat.h"
+#include "test_atiny_update_info.h"
+
 
 // mmj
 #include "test_agenttiny.h"
@@ -29,6 +31,7 @@ int main()
     ts.add(std::auto_ptr<Test::Suite>(new TestObjectDevice));
     ts.add(std::auto_ptr<Test::Suite>(new TestObjectFirmware));
     ts.add(std::auto_ptr<Test::Suite>(new TestObjectObjectConnectivityStat));
+    ts.add(std::auto_ptr<Test::Suite>(new TestAtinyUpdateInfo));
 
     ts.add(std::auto_ptr<Test::Suite>(new TestAgenttiny));
     ts.add(std::auto_ptr<Test::Suite>(new TestAtinyLog));
@@ -39,7 +42,7 @@ int main()
     ts.add(std::auto_ptr<Test::Suite>(new TestObjectBinaryAppDataContainer));
     ts.add(std::auto_ptr<Test::Suite>(new TestObjectConnectivityMoni));
     
-    ts.add(std::auto_ptr<Test::Suite>(new TestObjectAccessControl));
+//    ts.add(std::auto_ptr<Test::Suite>(new TestObjectAccessControl));
 
     std::ofstream html;
     html.open("Result.htm");
