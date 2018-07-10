@@ -55,7 +55,7 @@
 #include "atiny_log.h"
 #include "atiny_update_info.h"
 
-#define ASSERT_THIS(do_something) if(thi)\
+#define ASSERT_THIS(do_something) \
     {\
         if(NULL == thi)\
         {\

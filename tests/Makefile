@@ -5,7 +5,8 @@ SUB_DIR := \
 	$(TOP_DIR)/components/connectivity/agent_tiny/lwm2m_client \
 	$(TOP_DIR)/components/connectivity/at_frame \
 	$(TOP_DIR)/drivers/devices/gprs \
-	$(TOP_DIR)/drivers/devices/wifi
+	$(TOP_DIR)/drivers/devices/wifi \
+	$(TOP_DIR)/drivers/devices/esp_8266_spi
 
 GCOV_INFO_SUFFIX := /gcov/gcov.info 
 	

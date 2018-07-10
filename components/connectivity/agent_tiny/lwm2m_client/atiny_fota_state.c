@@ -170,7 +170,7 @@ int atiny_fota_downloaded_state_execute_update(atiny_fota_state_s * thi)
 
     ASSERT_THIS(return ATINY_ARG_INVALID);
 
-    if(atiny_fota_manager_get_update_result(thi->manager) != ATINY_FIRMWARE_UPDATE_NULL)
+    if(atiny_fota_manager_get_update_result(thi->manager) == ATINY_FIRMWARE_UPDATE_NULL)
     {
          goto EXIT_IDLE;
     }

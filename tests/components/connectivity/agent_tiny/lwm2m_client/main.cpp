@@ -8,7 +8,7 @@
 #include "test_connection.h"
 #include "test_object_connectivity_stat.h"
 #include "test_atiny_update_info.h"
-
+#include "test_atiny_fota_state.h"
 
 // mmj
 #include "test_agenttiny.h"
@@ -22,6 +22,7 @@
 
 // zk
 #include "test_object_access_control.h"
+#include "test_atiny_fota_manager.h"
 
 int main()
 {
@@ -32,6 +33,7 @@ int main()
     ts.add(std::auto_ptr<Test::Suite>(new TestObjectFirmware));
     ts.add(std::auto_ptr<Test::Suite>(new TestObjectObjectConnectivityStat));
     ts.add(std::auto_ptr<Test::Suite>(new TestAtinyUpdateInfo));
+    ts.add(std::auto_ptr<Test::Suite>(new TestAtinyFotaState));
 
     ts.add(std::auto_ptr<Test::Suite>(new TestAgenttiny));
     ts.add(std::auto_ptr<Test::Suite>(new TestAtinyLog));
@@ -42,7 +44,8 @@ int main()
     ts.add(std::auto_ptr<Test::Suite>(new TestObjectBinaryAppDataContainer));
     ts.add(std::auto_ptr<Test::Suite>(new TestObjectConnectivityMoni));
     
-//    ts.add(std::auto_ptr<Test::Suite>(new TestObjectAccessControl));
+    ts.add(std::auto_ptr<Test::Suite>(new TestObjectAccessControl));
+    ts.add(std::auto_ptr<Test::Suite>(new TestAtinyFotaManager));
 
     std::ofstream html;
     html.open("Result.htm");
