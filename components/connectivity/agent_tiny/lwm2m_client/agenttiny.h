@@ -41,8 +41,9 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#ifdef CONFIG_FEATURE_FOTA
 #include "atiny_fota_api.h"
-
+#endif
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -124,6 +125,7 @@ typedef enum
     ATINY_REG_FAIL,
     ATINY_DATA_SUBSCRIBLE,
     ATINY_DATA_UNSUBSCRIBLE,
+    ATINY_FOTA_STATE
 } atiny_event_e;
 
 /**
@@ -148,9 +150,9 @@ void atiny_event_notify(atiny_event_e event, const char* arg, int len);
 
 typedef struct
 {
-    char* binding;               /*Ä¿Ç°Ö§³ÖU»òÕßUQ*/
-    int   life_time;             /*±ØÑ¡£¬Ä¬ÈÏ50000,Èç¹ı¶Ì£¬ÔòÆµ·±·¢ËÍupdate±¨ÎÄ£¬Èç¹ı³¤£¬ÔÚÏß×´Ì¬¸üĞÂÊ±¼ä³¤*/
-    unsigned int  storing_cnt;   /*storingÎªtrueÊ±£¬lwm2m»º´æÇø×Ü×Ö½Ú¸öÊı*/
+    char* binding;               /*ç›®å‰æ”¯æŒUæˆ–è€…UQ*/
+    int   life_time;             /*å¿…é€‰ï¼Œé»˜è®¤50000,å¦‚è¿‡çŸ­ï¼Œåˆ™é¢‘ç¹å‘é€updateæŠ¥æ–‡ï¼Œå¦‚è¿‡é•¿ï¼Œåœ¨çº¿çŠ¶æ€æ›´æ–°æ—¶é—´é•¿*/
+    unsigned int  storing_cnt;   /*storingä¸ºtrueæ—¶ï¼Œlwm2mç¼“å­˜åŒºæ€»å­—èŠ‚ä¸ªæ•°*/
 } atiny_server_param_t;
 
 
@@ -165,21 +167,12 @@ typedef enum
 
 typedef struct
 {
-    atiny_bootstrap_type_e  bootstrap_mode;
-
-    //two pairs of ip/port, because bootstrap sequence will make more try than one.
-    char* iot_server_ip;
-    char* iot_server_port;
-    char* bs_server_ip;
-    char* bs_server_port;
+    char* server_ip;
+    char* server_port;
 
     char* psk_Id;
     char* psk;
     unsigned short psk_len;
-
-    //get rid of it, now,when the pskid and psk are set (not NULL), the securityMode is LWM2M_SECURITY_MODE_PRE_SHARED_KEY, or else
-    //is LWM2M_SECURITY_MODE_NONE
-    //int securityMode;
 
 } atiny_security_param_t;
 
@@ -193,7 +186,12 @@ typedef enum
 
 typedef struct
 {
+
     atiny_server_param_t   server_params;
+
+    atiny_bootstrap_type_e  bootstrap_mode;
+
+    //both iot_server and bs_server have psk & pskID, index 0 for iot_server, and index 1 for bs_server
     atiny_security_param_t security_params[2];
 } atiny_param_t;
 
@@ -274,11 +272,11 @@ typedef void (*atiny_ack_callback) (atiny_report_type_e type, int cookie, data_s
 
 typedef struct _data_report_t
 {
-    atiny_report_type_e type;     /*Êı¾İÉÏ±¨ÀàĞÍ*/
-    int cookie;                   /*Êı¾İcookie,ÓÃÒÔÔÚack»Øµ÷ÖĞ£¬Çø·Ö²»Í¬µÄÊı¾İ*/
-    int len;                      /*Êı¾İ³¤¶È£¬²»Ó¦´óÓÚMAX_REPORT_DATA_LEN*/
-    uint8_t* buf;                 /*Êı¾İ»º³åÇøÊ×µØÖ·*/
-    atiny_ack_callback callback;  /*ack»Øµ÷*/
+    atiny_report_type_e type;     /*æ•°æ®ä¸ŠæŠ¥ç±»å‹*/
+    int cookie;                   /*æ•°æ®cookie,ç”¨ä»¥åœ¨ackå›è°ƒä¸­ï¼ŒåŒºåˆ†ä¸åŒçš„æ•°æ®*/
+    int len;                      /*æ•°æ®é•¿åº¦ï¼Œä¸åº”å¤§äºMAX_REPORT_DATA_LEN*/
+    uint8_t* buf;                 /*æ•°æ®ç¼“å†²åŒºé¦–åœ°å€*/
+    atiny_ack_callback callback;  /*ackå›è°ƒ*/
 } data_report_t;
 
 /**

@@ -725,7 +725,8 @@ typedef struct
 #ifdef LWM2M_CLIENT_MODE
     lwm2m_client_state_t state;
     lwm2m_bs_sequence_state_t bs_sequence_state;
-    char*                bs_server_uri;   //    coaps://     coap://malloc memory
+    //char*                bs_server_uri;   //    coaps://     coap://malloc memory
+    bool                 regist_first_flag;  //when serverlist and bootstrapServerList are all exist, we use regist or bootstrap.
     char*                endpointName;
     char*                msisdn;
     char*                altPath;
@@ -789,14 +790,14 @@ int lwm2m_bootstrap_sequence_server_to_client_initiated(lwm2m_context_t * contex
 
 typedef struct
 {
-    lwm2m_media_type_t format;
+    uint32_t format;
     uint8_t token[8];
     uint32_t tokenLen;
     uint32_t counter;
 }lwm2m_observe_info_t;
 
 uint8_t lwm2m_get_observe_info(lwm2m_context_t * contextP, lwm2m_observe_info_t *observe_info);
-uint8_t lwm2m_send_notify(lwm2m_context_t * contextP, lwm2m_observe_info_t *observe_info, int firmware_update_state);
+uint8_t lwm2m_send_notify(lwm2m_context_t * contextP, lwm2m_observe_info_t *observe_info, int firmware_update_state, lwm2m_data_cfg_t  *cfg);
 
 #endif
 
