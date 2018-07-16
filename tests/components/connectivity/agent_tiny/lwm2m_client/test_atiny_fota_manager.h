@@ -62,12 +62,16 @@ public:
     void test_atiny_fota_manager_set_state();
     void test_atiny_fota_manager_set_storage_device();
     void test_atiny_fota_manager_get_storage_device();
-    void test_atiny_fota_manager_update_notify();
+//    void test_atiny_fota_manager_update_notify();
     void test_atiny_fota_manager_destroy();
     void test_atiny_fota_manager_set_lwm2m_context();
     void test_atiny_fota_manager_get_lwm2m_context();
     void test_atiny_fota_manager_get_instance();
+    void test_atiny_fota_manager_get_data_cfg();
     void test_atiny_fota_manager_get_pkg_uri();
+    void test_atiny_fota_manager_get_update_result();
+    void test_atiny_fota_manager_get_deliver_method();
+    void test_atiny_fota_manager_update_notify();
     
     
 protected:

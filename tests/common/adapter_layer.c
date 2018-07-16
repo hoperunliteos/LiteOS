@@ -222,12 +222,15 @@ int read_resp(uint8_t * buf)
 
 /*###################################     FOTA    #######################################*/
 
-int hal_init_fota(void)
+void hal_spi_flash_config(void)
 {
     return 0;
 }
-
-int hal_get_fota_device(atiny_fota_storage_device_s **storage_device, fota_hardware_s **hardware)
+int hal_spi_flash_read(void* buf, int32_t len, uint32_t location)
+{
+    return 0;
+}
+int hal_spi_flash_erase_write(const void* buf, int32_t len, uint32_t location)
 {
     return 0;
 }

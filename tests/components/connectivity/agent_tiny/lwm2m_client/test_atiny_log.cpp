@@ -84,6 +84,7 @@ void TestAtinyLog::test_atiny_get_log_level(void)
     atiny_set_log_level(ori_logLevel);
     TEST_ASSERT_MSG((0 == ret), "atiny_set_log_level(...) failed");
 }
+
 void TestAtinyLog::test_atiny_get_log_level_name(void)
 {
     atiny_log_e logLevel = LOG_INFO;

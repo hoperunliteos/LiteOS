@@ -50,7 +50,6 @@ public:
     TestAgenttiny();
     ~TestAgenttiny();
 
-    void test_atiny_cmd_ioctl(void);
     void test_atiny_event_notify(void);
     void test_atiny_init(void);
     void test_atiny_bind(void);
@@ -62,8 +61,9 @@ public:
     void test_atiny_reconnect(void);
     void test_atiny_event_handle(void);
     void test_observe_handle_ack(void);
-    void test_atiny_get_set_bootstrap_info(void);
     void test_atiny_init_objects(void);
+    void test_atiny_set_bootstrap_sequence_state(void);
+    void test_atiny_destroy(void);
 
 protected:
     void setup();

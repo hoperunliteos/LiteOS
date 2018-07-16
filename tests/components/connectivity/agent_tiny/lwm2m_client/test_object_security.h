@@ -58,7 +58,12 @@ public:
     void test_security_get_uri(void);
 
     void test_prv_security_read(void);
+
+protected:
+    void setup();
+    void tear_down();    
 };
 
 
 #endif /* __TEST_OBJECT_SECURITY_H__ */
+

@@ -48,6 +48,9 @@ extern "C" {
     }
     atiny_net_context;
 
+    
+    extern void agent_tiny_fota_init(void);
+
     void *stub_atiny_net_connect(const char *host, const char *port, int proto)
     {
         return NULL;
@@ -68,16 +71,41 @@ extern "C" {
     {
         return -1;
     }
+
+    
+    void test_lwm2m_connection_err_notify_t(lwm2m_context_t* context, connection_err_e err_type, bool boostrap_flag)
+    {
+        return;
+    }
 }
 void TestConnection::test_connection_create()
 {
     connection_t conn;
     lwm2m_object_t securityObj0;
+    lwm2m_list_t instanceList;
 
     securityObj0.instanceList = NULL;
     connection_t *connP = connection_create(&conn, &securityObj0, 0, NULL);
     TEST_ASSERT((connP == NULL));
-    lwm2m_free(connP);
+
+    memset(&instanceList, 0, sizeof(lwm2m_list_t));
+    securityObj0.instanceList = &instanceList;
+    ((security_instance_t*)(securityObj0.instanceList))->uri = NULL;
+    connP = connection_create(&conn, &securityObj0, 0, NULL);
+    TEST_ASSERT((connP == NULL));
+
+    ((security_instance_t*)(securityObj0.instanceList))->uri = "coaps://";
+    connP = connection_create(&conn, &securityObj0, 0, NULL);
+    TEST_ASSERT((connP == NULL));
+
+    ((security_instance_t*)(securityObj0.instanceList))->uri = "coa://";
+    connP = connection_create(&conn, &securityObj0, 0, NULL);
+    TEST_ASSERT((connP == NULL));
+
+    char uri[] = "coap://[192.168.1.12]:[5683]";
+    ((security_instance_t*)(securityObj0.instanceList))->uri = uri;
+    connP = connection_create(&conn, &securityObj0, 0, NULL);
+    TEST_ASSERT((connP == NULL));
 
     connP = NULL;
     lwm2m_context_t context;
@@ -85,20 +113,9 @@ void TestConnection::test_connection_create()
     int serverId = 123;
     char serverUri[SERVER_URI_MAX_LEN];
 
-    if(atiny_params->security_params[0].psk != NULL)
-    {
-        snprintf(serverUri, SERVER_URI_MAX_LEN, "coaps://%s:%s",
-                 atiny_params->security_params[0].bs_server_ip, atiny_params->security_params[0].bs_server_port);
-    }
-    else
-    {
-        snprintf(serverUri, SERVER_URI_MAX_LEN, "coap://%s:%s",
-                 atiny_params->security_params[0].bs_server_ip, atiny_params->security_params[0].bs_server_port);
-    }
-
-    lwm2m_object_t *securityObj = get_security_object(serverId, serverUri, atiny_params->security_params[0].psk_Id, atiny_params->security_params[0].psk, atiny_params->security_params[0].psk_len, false);
+    lwm2m_object_t *securityObj = get_security_object(serverId, atiny_params, &context);
     TEST_ASSERT((securityObj != NULL));
-    printf("[%s:%d] uri:%s\n", __FILE__, __LINE__, serverUri);
+    
     connP = connection_create(&conn, securityObj, 0, &context);
     TEST_ASSERT_MSG((connP != NULL), "Test in connection_create when atiny_net_connect is Failed!");
     TEST_ASSERT((connP->next == &conn));
@@ -110,6 +127,7 @@ void TestConnection::test_connection_create()
 
     stubInfo si;
     setStub((void *)atiny_net_connect, (void *)stub_atiny_net_connect, &si);
+    
     connP = connection_create(&conn, securityObj, 0, &context);
     TEST_ASSERT_MSG((connP == NULL), "Test in connection_create when atiny_net_connect return NULL is Failed!");
     lwm2m_free(connP);
@@ -278,6 +296,10 @@ void TestConnection::test_lwm2m_session_is_equal()
     TEST_ASSERT(ret == false);
 
 }
+void TestConnection::test_lwm2m_register_connection_err_notify()
+{
+    lwm2m_register_connection_err_notify(test_lwm2m_connection_err_notify_t);
+}
 TestConnection::TestConnection()
 {
 
@@ -288,13 +310,15 @@ TestConnection::TestConnection()
     TEST_ADD(TestConnection::test_lwm2m_close_connection);
     TEST_ADD(TestConnection::test_lwm2m_buffer_recv);
     TEST_ADD(TestConnection::test_connection_free);
+    TEST_ADD(TestConnection::test_lwm2m_register_connection_err_notify);
 }
 
 void TestConnection::setup()
 {
     atiny_device_info_t *device_info = &this->prv_dev_info;
     atiny_param_t *atiny_params = &this->prv_atiny_params;
-    atiny_security_param_t  *security_param = &(atiny_params->security_params[0]);
+    atiny_security_param_t  *iot_security_param = NULL;
+    atiny_security_param_t  *bs_security_param = NULL;
     void *handle = this->prv_handle;
 
     memset(atiny_params, 0, sizeof(atiny_param_t));
@@ -307,16 +331,26 @@ void TestConnection::setup()
     atiny_params->server_params.life_time = 50000;
     atiny_params->server_params.storing_cnt = 0;
 
-    security_param = &(atiny_params->security_params[0]);
-    security_param->bs_server_ip = (char *)"139.159.209.89";
-    security_param->bs_server_port = (char *)"5683";
-    security_param->iot_server_ip = (char *)"139.159.209.89";
-    security_param->iot_server_port = (char *)"5683";
-    security_param->psk_Id = NULL;
-    security_param->psk = NULL;
-    security_param->psk_len = 0;
+    iot_security_param = &(atiny_params->security_params[0]);
+    bs_security_param = &(atiny_params->security_params[1]);
+
+    iot_security_param->server_ip = (char *)"192.168.0.106";
+    bs_security_param->server_ip = (char *)"192.168.0.106";
+
+    iot_security_param->server_port = (char *)"5683";
+    bs_security_param->server_port = (char *)"5683";
+
+    iot_security_param->psk_Id = NULL;
+    iot_security_param->psk = NULL;
+    iot_security_param->psk_len = 0;
+
+    bs_security_param->psk_Id = NULL;
+    bs_security_param->psk = NULL;
+    bs_security_param->psk_len = 0;
+    
     stubInfo si_atiny_mutex_create;
     setStub((void *)atiny_mutex_create, (void *)stub_atiny_mutex_create, &si_atiny_mutex_create);
+    agent_tiny_fota_init();
     int ret = atiny_init(atiny_params, &handle);
     cleanStub(&si_atiny_mutex_create);
     printf("[%s:%d] ret:%d\n", __FILE__, __LINE__, ret);

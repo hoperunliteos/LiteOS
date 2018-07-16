@@ -41,6 +41,7 @@ INCLUDES:= \
     -I$(HW_LITEOSDIR)/components/connectivity/agent_tiny/examples/ \
     -I$(HW_LITEOSDIR)/components/connectivity/agent_tiny/firmware_update/ \
 	-I$(HW_LITEOSDIR)/components/connectivity/agent_tiny/lwm2m_client/ \
+	-I$(HW_LITEOSDIR)/components/connectivity/agent_tiny/lwm2m_client/fota/ \
     -I$(HW_LITEOSDIR)/components/connectivity/agent_tiny/mqtt_client/ \
 	-I$(HW_LITEOSDIR)/components/connectivity/agent_tiny/osadapter/ \
     -I$(HW_LITEOSDIR)/components/connectivity/at_frame/ \
@@ -60,11 +61,11 @@ INCLUDES:= \
 	-I$(HW_LITEOSDIR)/kernel/base/include/ \
 	-I$(HW_LITEOSDIR)/kernel/include/ \
 	-I$(HW_LITEOSDIR)/kernel/extended/include/ \
-	-I$(HW_LITEOSDIR)/targets/STM32F429IGTx_FIRE/OS_CONFIG/ \
-	-I$(HW_LITEOSDIR)/targets/STM32F429IGTx_FIRE/Inc/ \
-	-I$(HW_LITEOSDIR)/targets/STM32F429IGTx_FIRE/Hardware/Inc \
-	-I$(HW_LITEOSDIR)/targets/STM32F429IGTx_FIRE/Drivers/STM32F4xx_HAL_Driver/Inc/ \
-	-I$(HW_LITEOSDIR)/targets/STM32F429IGTx_FIRE/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy/ \
+	-I$(HW_LITEOSDIR)/targets/Cloud_STM32F429IGTx_FIRE/OS_CONFIG/ \
+	-I$(HW_LITEOSDIR)/targets/Cloud_STM32F429IGTx_FIRE/Inc/ \
+	-I$(HW_LITEOSDIR)/targets/Cloud_STM32F429IGTx_FIRE/Hardware/Inc \
+	-I$(HW_LITEOSDIR)/targets/Cloud_STM32F429IGTx_FIRE/Drivers/STM32F4xx_HAL_Driver/Inc/ \
+	-I$(HW_LITEOSDIR)/targets/Cloud_STM32F429IGTx_FIRE/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy/ \
 	-I$(HW_LITEOSDIR)/tests/common/ 
 	
 CPP_SRC:= $(wildcard *.cpp)

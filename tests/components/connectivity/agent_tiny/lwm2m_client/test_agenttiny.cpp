@@ -79,17 +79,22 @@ extern "C"
 
     static handle_data_t *s_handle = NULL;
     static SEM_CB_S s_sem;
+    static atiny_param_t s_atiny_params;
+    static int s_malloc_failed_index = 0;
+    static int s_create_mutex_failed_index = 0;
 
     extern void atiny_event_handle(module_type_t type, int code, const char *arg, int arg_len);
     extern void observe_handle_ack(lwm2m_transaction_t *transacP, void *message);
     extern int atiny_init_objects(atiny_param_t *atiny_params, const atiny_device_info_t *device_info,
                                   handle_data_t *handle);
-    extern void atiny_get_set_bootstrap_info(atiny_param_t *atiny_params,
-            lwm2m_context_t *lwm2m_context, char **bs_ip, char **bs_port, bool *need_bs_flag);
+    extern void atiny_set_bootstrap_sequence_state(atiny_param_t* atiny_params, lwm2m_context_t* lwm2m_context);
     extern void lwm2m_close(lwm2m_context_t *contextP);
+    extern void *lwm2m_malloc(size_t s);
 
     extern void atiny_destroy(void *handle);
+    extern void atiny_destroy_rpt(void);
     extern void atiny_set_reboot_flag();
+    extern void agent_tiny_fota_init(void);
 
     extern void *atiny_mutex_create(void);
     extern void atiny_mutex_lock(void *mutex);
@@ -105,9 +110,29 @@ extern "C"
         return (void *)&s_sem;
     }
 
+    static void *stub_atiny_mutex_create_ex(void)
+    {
+        static int i = 0;
+        if( i++ == s_create_mutex_failed_index)
+        {
+            i = 0;
+            return NULL;
+        }
+        if(s_create_mutex_failed_index == 0xff)
+        {
+            i = 0;
+        }
+        memset(&s_sem, 0, sizeof(SEM_CB_S));
+        return (void *)&s_sem;
+    }
+
     static int stub_atiny_cmd_ioctl(atiny_cmd_e cmd, char *arg, int len)
     {
-        if(NULL != s_handle)
+        if(cmd == ATINY_GET_FOTA_STORAGE_DEVICE)
+        {
+            arg = NULL;
+        }
+        else if(NULL != s_handle)
         {
             s_handle->atiny_quit = 1;
             s_handle = NULL;
@@ -124,13 +149,52 @@ extern "C"
     {
         return ATINY_ERR;
     }
+
+    static void *stub_lwm2m_malloc(size_t s)
+    {
+        static int i = 0;
+        if( i++ == s_malloc_failed_index)
+        {
+            i = 0;
+            return NULL;
+        }
+        if( s_malloc_failed_index == 0xff)
+        {
+            i = 0;
+        }
+        return atiny_malloc(s);
+    }
+
+    static lwm2m_object_t * stub_get_security_object(uint16_t serverId,atiny_param_t* atiny_params,lwm2m_context_t* lwm2m_context)
+    {
+        return NULL;
+    }
+    static lwm2m_object_t * stub_get_server_object(int serverId, const char* binding, int lifetime,bool storing)
+    {
+        return NULL;
+    }
+    static lwm2m_object_t * stub_get_object_device(atiny_param_t *atiny_params, const char* manufacturer)
+    {
+        return NULL;
+    }
+    static lwm2m_object_t * stub_get_object_firmware(atiny_param_t *atiny_params)
+    {
+        return NULL;
+    }
+    static lwm2m_object_t * stub_get_object_conn_m(atiny_param_t* atiny_params)
+    {
+        return NULL;
+    }
+    static lwm2m_object_t * stub_get_binary_app_data_object(atiny_param_t* atiny_params)
+    {
+        return NULL;
+    }
 }
 /* Global variables ---------------------------------------------------------*/
 /* Private function prototypes ----------------------------------------------*/
 /* Public functions ---------------------------------------------------------*/
 TestAgenttiny::TestAgenttiny()
 {
-    TEST_ADD(TestAgenttiny::test_atiny_cmd_ioctl);
     TEST_ADD(TestAgenttiny::test_atiny_event_notify);
     TEST_ADD(TestAgenttiny::test_atiny_init);
     TEST_ADD(TestAgenttiny::test_atiny_bind);
@@ -142,8 +206,9 @@ TestAgenttiny::TestAgenttiny()
     TEST_ADD(TestAgenttiny::test_atiny_reconnect);
     TEST_ADD(TestAgenttiny::test_atiny_event_handle);
     TEST_ADD(TestAgenttiny::test_observe_handle_ack);
-    TEST_ADD(TestAgenttiny::test_atiny_get_set_bootstrap_info);
     TEST_ADD(TestAgenttiny::test_atiny_init_objects);
+    TEST_ADD(TestAgenttiny::test_atiny_set_bootstrap_sequence_state);
+    TEST_ADD(TestAgenttiny::test_atiny_destroy);
 }
 
 TestAgenttiny::~TestAgenttiny()
@@ -151,20 +216,18 @@ TestAgenttiny::~TestAgenttiny()
 
 }
 
-void TestAgenttiny::test_atiny_cmd_ioctl(void)
-{
-
-}
-
 void TestAgenttiny::test_atiny_event_notify(void)
 {
-
+    const char *arg = "atiny_event_notify";
+    int len = strlen(arg);
+    
+    atiny_event_notify(ATINY_REG_OK, arg, len);
 }
 
 void TestAgenttiny::test_atiny_init(void)
 {
     void *pHandle = NULL;
-    atiny_security_param_t  *security_param = NULL;
+
     atiny_param_t atiny_params;
     memset(&atiny_params, 0, sizeof(atiny_param_t));
     atiny_params.server_params.binding = (char *)"UQ";
@@ -176,47 +239,45 @@ void TestAgenttiny::test_atiny_init(void)
     ret = atiny_init(NULL, NULL);
     TEST_ASSERT_MSG((ATINY_ARG_INVALID == ret), "atiny_init(NULL, NULL) failed");
 
+    /** no server_ip or server_port test **/
+    atiny_params.bootstrap_mode = BOOTSTRAP_FACTORY;
     ret = atiny_init(&atiny_params, &pHandle);
     TEST_ASSERT_MSG((ATINY_ARG_INVALID == ret), "atiny_init(...) failed");
 
-    // fill security param
-    security_param = &(atiny_params.security_params[0]);
-
-    security_param->bootstrap_mode = BOOTSTRAP_FACTORY;
+    atiny_params.bootstrap_mode = BOOTSTRAP_CLIENT_INITIATED;
     ret = atiny_init(&atiny_params, &pHandle);
     TEST_ASSERT_MSG((ATINY_ARG_INVALID == ret), "atiny_init(...) failed");
 
-    security_param->bootstrap_mode = BOOTSTRAP_CLIENT_INITIATED;
-    ret = atiny_init(&atiny_params, &pHandle);
-    TEST_ASSERT_MSG((ATINY_ARG_INVALID == ret), "atiny_init(...) failed");
-
-    security_param->bootstrap_mode = BOOTSTRAP_SEQUENCE;
+    atiny_params.bootstrap_mode = BOOTSTRAP_SEQUENCE;
     ret = atiny_init(&atiny_params, &pHandle);
     TEST_ASSERT_MSG((ATINY_RESOURCE_NOT_ENOUGH == ret), "atiny_init(...) failed");
 
-    security_param->bootstrap_mode = (atiny_bootstrap_type_e)0xff;
+    atiny_params.bootstrap_mode = (atiny_bootstrap_type_e)0xff;
     ret = atiny_init(&atiny_params, &pHandle);
     TEST_ASSERT_MSG((ATINY_ARG_INVALID == ret), "atiny_init(...) failed");
 
-    security_param->bootstrap_mode = BOOTSTRAP_FACTORY;
-    security_param->iot_server_ip = (char *)"192.168.0.106";
-    security_param->bs_server_ip = (char *)"192.168.0.106";
-
-    security_param->iot_server_port = (char *)"5683";
-    security_param->bs_server_port = (char *)"5683";
-
-    security_param->psk_Id = NULL;
-    security_param->psk = NULL;
-    security_param->psk_len = 0;
-
-    ret = atiny_init(&atiny_params, &pHandle);
+    // use s_atiny_params to test
+    ret = atiny_init(&s_atiny_params, &pHandle);
     TEST_ASSERT_MSG((ATINY_RESOURCE_NOT_ENOUGH == ret), "atiny_init(...) failed");
 
     stubInfo si_mutex_create;
     setStub((void *)atiny_mutex_create, (void *)stub_atiny_mutex_create, &si_mutex_create);
-    ret = atiny_init(&atiny_params, &pHandle);
+    agent_tiny_fota_init();
+
+    stubInfo si_ioctl;
+    setStub((void *)atiny_cmd_ioctl, (void *)stub_atiny_cmd_ioctl, &si_ioctl);
+    ret = atiny_init(&s_atiny_params, &pHandle);
+    cleanStub(&si_ioctl);
+    TEST_ASSERT_MSG((ATINY_ERR == ret), "atiny_init(...) failed");
+
+    ret = atiny_init(&s_atiny_params, &pHandle);
     cleanStub(&si_mutex_create);
     TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_init(...) failed");
+
+    // destory
+    ret = 0;
+    atiny_deinit(pHandle);
+    TEST_ASSERT_MSG((0 == ret), "atiny_deinit(...) failed");
 }
 
 void TestAgenttiny::test_atiny_bind(void)
@@ -231,29 +292,10 @@ void TestAgenttiny::test_atiny_bind(void)
     TEST_ASSERT_MSG((ATINY_ARG_INVALID == ret), "atiny_bind(NULL, NULL) failed");
 
     // atiny_init()
-    atiny_security_param_t  *security_param = NULL;
-    atiny_param_t atiny_params;
-    memset(&atiny_params, 0, sizeof(atiny_param_t));
-    atiny_params.server_params.binding = (char *)"UQ";
-    atiny_params.server_params.life_time = 20;
-    atiny_params.server_params.storing_cnt = 0;
-
-    security_param = &(atiny_params.security_params[0]);
-
-    security_param->bootstrap_mode = BOOTSTRAP_FACTORY;
-    security_param->iot_server_ip = (char *)"192.168.0.106";
-    security_param->bs_server_ip = (char *)"192.168.0.106";
-
-    security_param->iot_server_port = (char *)"5683";
-    security_param->bs_server_port = (char *)"5683";
-
-    security_param->psk_Id = NULL;
-    security_param->psk = NULL;
-    security_param->psk_len = 0;
-
     stubInfo si_mutex_create;
     setStub((void *)atiny_mutex_create, (void *)stub_atiny_mutex_create, &si_mutex_create);
-    ret = atiny_init(&atiny_params, &pHandle);
+    agent_tiny_fota_init();
+    ret = atiny_init(&s_atiny_params, &pHandle);
     cleanStub(&si_mutex_create);
     TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_init(...) failed");
     /////////////////////
@@ -273,14 +315,15 @@ void TestAgenttiny::test_atiny_bind(void)
     TEST_ASSERT_MSG((ATINY_RESOURCE_NOT_ENOUGH == ret), "atiny_bind(NULL, NULL) failed");
 
     s_handle = (handle_data_t *)pHandle;
-    g_reboot = 1;
+    //g_reboot = 1;
+    atiny_set_reboot_flag();
     stubInfo si_cmd_ioctl;
     setStub((void *)atiny_mutex_create, (void *)stub_atiny_mutex_create, &si_mutex_create);
     setStub((void *)atiny_cmd_ioctl, (void *)stub_atiny_cmd_ioctl, &si_cmd_ioctl);
     ret = atiny_bind(&device_info, pHandle);
     cleanStub(&si_mutex_create);
     cleanStub(&si_cmd_ioctl);
-    g_reboot = 0;
+    g_reboot = false;
     TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_bind(NULL, NULL) failed");
 
     // destory
@@ -298,29 +341,10 @@ void TestAgenttiny::test_atiny_deinit(void)
     TEST_ASSERT_MSG((0 == ret), "atiny_deinit(...) failed");
 
     // through atiny_init(...) initialize pHandle
-    atiny_security_param_t  *security_param = NULL;
-    atiny_param_t atiny_params;
-    memset(&atiny_params, 0, sizeof(atiny_param_t));
-    atiny_params.server_params.binding = (char *)"UQ";
-    atiny_params.server_params.life_time = 20;
-    atiny_params.server_params.storing_cnt = 0;
-
-    security_param = &(atiny_params.security_params[0]);
-
-    security_param->bootstrap_mode = BOOTSTRAP_FACTORY;
-    security_param->iot_server_ip = (char *)"192.168.0.106";
-    security_param->bs_server_ip = (char *)"192.168.0.106";
-
-    security_param->iot_server_port = (char *)"5683";
-    security_param->bs_server_port = (char *)"5683";
-
-    security_param->psk_Id = NULL;
-    security_param->psk = NULL;
-    security_param->psk_len = 0;
-
     stubInfo si_mutex_create;
-    setStub((void *)atiny_mutex_create, (void *)stub_atiny_mutex_create, &si_mutex_create);
-    ret = atiny_init(&atiny_params, &pHandle);
+    setStub((void *)atiny_mutex_create, (void *)stub_atiny_mutex_create, &si_mutex_create);    
+    agent_tiny_fota_init();
+    ret = atiny_init(&s_atiny_params, &pHandle);
     cleanStub(&si_mutex_create);
     TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_init(...) failed");
 
@@ -345,29 +369,10 @@ void TestAgenttiny::test_atiny_data_report(void)
 
     void *pHandle = NULL;
     // through atiny_init(...) initialize pHandle
-    atiny_security_param_t  *security_param = NULL;
-    atiny_param_t atiny_params;
-    memset(&atiny_params, 0, sizeof(atiny_param_t));
-    atiny_params.server_params.binding = (char *)"UQ";
-    atiny_params.server_params.life_time = 20;
-    atiny_params.server_params.storing_cnt = 0;
-
-    security_param = &(atiny_params.security_params[0]);
-
-    security_param->bootstrap_mode = BOOTSTRAP_FACTORY;
-    security_param->iot_server_ip = (char *)"192.168.0.106";
-    security_param->bs_server_ip = (char *)"192.168.0.106";
-
-    security_param->iot_server_port = (char *)"5683";
-    security_param->bs_server_port = (char *)"5683";
-
-    security_param->psk_Id = NULL;
-    security_param->psk = NULL;
-    security_param->psk_len = 0;
-
     stubInfo si_mutex_create;
     setStub((void *)atiny_mutex_create, (void *)stub_atiny_mutex_create, &si_mutex_create);
-    ret = atiny_init(&atiny_params, &pHandle);
+    agent_tiny_fota_init();
+    ret = atiny_init(&s_atiny_params, &pHandle);
     cleanStub(&si_mutex_create);
     TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_init(...) failed");
     //////////
@@ -383,6 +388,18 @@ void TestAgenttiny::test_atiny_data_report(void)
     ret = atiny_data_report(pHandle, &report_data);
     TEST_ASSERT_MSG((ATINY_RESOURCE_NOT_FOUND == ret), "atiny_data_report(...) failed");
 
+    report_data.type = (atiny_report_type_e)0xff;
+    ret = atiny_data_report(pHandle, &report_data);
+    TEST_ASSERT_MSG((ATINY_RESOURCE_NOT_FOUND == ret), "atiny_data_report(...) failed");
+
+    stubInfo si_malloc;
+    setStub((void *)lwm2m_malloc, (void *)stub_lwm2m_malloc, &si_malloc);
+    s_malloc_failed_index = 0;
+    report_data.type = APP_DATA;
+    ret = atiny_data_report(pHandle, &report_data);
+    s_malloc_failed_index = 0xff;
+    TEST_ASSERT_MSG((ATINY_MALLOC_FAILED == ret), "atiny_data_report(...) failed");
+    cleanStub(&si_malloc);
 
     ret = 0;
     atiny_deinit(pHandle);
@@ -394,29 +411,10 @@ void TestAgenttiny::test_atiny_data_change(void)
     int ret = 0;
     void *pHandle = NULL;
     // through atiny_init(...) initialize pHandle
-    atiny_security_param_t  *security_param = NULL;
-    atiny_param_t atiny_params;
-    memset(&atiny_params, 0, sizeof(atiny_param_t));
-    atiny_params.server_params.binding = (char *)"UQ";
-    atiny_params.server_params.life_time = 20;
-    atiny_params.server_params.storing_cnt = 0;
-
-    security_param = &(atiny_params.security_params[0]);
-
-    security_param->bootstrap_mode = BOOTSTRAP_FACTORY;
-    security_param->iot_server_ip = (char *)"192.168.0.106";
-    security_param->bs_server_ip = (char *)"192.168.0.106";
-
-    security_param->iot_server_port = (char *)"5683";
-    security_param->bs_server_port = (char *)"5683";
-
-    security_param->psk_Id = NULL;
-    security_param->psk = NULL;
-    security_param->psk_len = 0;
-
     stubInfo si_mutex_create;
     setStub((void *)atiny_mutex_create, (void *)stub_atiny_mutex_create, &si_mutex_create);
-    ret = atiny_init(&atiny_params, &pHandle);
+    agent_tiny_fota_init();
+    ret = atiny_init(&s_atiny_params, &pHandle);
     TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_init(...) failed");
     //////////
 
@@ -436,8 +434,18 @@ void TestAgenttiny::test_atiny_data_change(void)
     device_info.endpoint_name = (char *)"44440003";
     device_info.manufacturer = (char *)"Agent_Tiny";
 
+//    pHandleData->atiny_params.bootstrap_mode = BOOTSTRAP_SEQUENCE;
+//    ret = atiny_init_objects(&pHandleData->atiny_params, &device_info, pHandleData);
+//    TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_init_objects(...) failed");
+
+//    pHandleData->atiny_params.bootstrap_mode = BOOTSTRAP_CLIENT_INITIATED;
+//    ret = atiny_init_objects(&pHandleData->atiny_params, &device_info, pHandleData);
+//    TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_init_objects(...) failed");
+
+//    pHandleData->atiny_params.bootstrap_mode = BOOTSTRAP_FACTORY;
     ret = atiny_init_objects(&pHandleData->atiny_params, &device_info, pHandleData);
-    TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_data_change(...) failed");
+    TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_init_objects(...) failed");
+
 
     ret = atiny_data_change(pHandle, data_type);
     TEST_ASSERT_MSG((ATINY_CLIENT_UNREGISTERED == ret), "atiny_data_change(...) failed");
@@ -491,29 +499,10 @@ void TestAgenttiny::test_atiny_reconnect(void)
     TEST_ASSERT_MSG((ATINY_ARG_INVALID == ret), "atiny_reconnect(...) failed");
 
     // through atiny_init(...) initialize pHandle
-    atiny_security_param_t  *security_param = NULL;
-    atiny_param_t atiny_params;
-    memset(&atiny_params, 0, sizeof(atiny_param_t));
-    atiny_params.server_params.binding = (char *)"UQ";
-    atiny_params.server_params.life_time = 20;
-    atiny_params.server_params.storing_cnt = 0;
-
-    security_param = &(atiny_params.security_params[0]);
-
-    security_param->bootstrap_mode = BOOTSTRAP_FACTORY;
-    security_param->iot_server_ip = (char *)"192.168.0.106";
-    security_param->bs_server_ip = (char *)"192.168.0.106";
-
-    security_param->iot_server_port = (char *)"5683";
-    security_param->bs_server_port = (char *)"5683";
-
-    security_param->psk_Id = NULL;
-    security_param->psk = NULL;
-    security_param->psk_len = 0;
-
     stubInfo si_mutex_create;
     setStub((void *)atiny_mutex_create, (void *)stub_atiny_mutex_create, &si_mutex_create);
-    ret = atiny_init(&atiny_params, &pHandle);
+    agent_tiny_fota_init();
+    ret = atiny_init(&s_atiny_params, &pHandle);
     cleanStub(&si_mutex_create);
     TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_init(...) failed");
 
@@ -552,6 +541,7 @@ void TestAgenttiny::test_atiny_event_handle(void)
     TEST_ASSERT_MSG((0 == ret), "atiny_event_handle(...) failed");
 
     memset(&uri, 0, sizeof(lwm2m_uri_t));
+    uri.objectId = 19;
     arg = (char *)&uri;
     arg_len = sizeof(lwm2m_uri_t);
 
@@ -594,91 +584,249 @@ void TestAgenttiny::test_observe_handle_ack(void)
     TEST_ASSERT_MSG((0 == ret), "observe_handle_ack(...) failed");
 }
 
-void TestAgenttiny::test_atiny_get_set_bootstrap_info(void)
+
+void TestAgenttiny::test_atiny_init_objects(void)
 {
     int ret = 0;
+    void *pHandle = NULL;
+    
+    // through atiny_init(...) initialize pHandle
+    stubInfo si_mutex_create;
+    setStub((void *)atiny_mutex_create, (void *)stub_atiny_mutex_create, &si_mutex_create);
+    agent_tiny_fota_init();
+    ret = atiny_init(&s_atiny_params, &pHandle);
+    TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_init(...) failed");
+    //////////
 
-    atiny_security_param_t  *security_param = NULL;
-    atiny_param_t atiny_params;
-    memset(&atiny_params, 0, sizeof(atiny_param_t));
-    atiny_params.server_params.binding = (char *)"UQ";
-    atiny_params.server_params.life_time = 20;
-    atiny_params.server_params.storing_cnt = 0;
-
-    security_param = &(atiny_params.security_params[0]);
-
-    security_param->bootstrap_mode = BOOTSTRAP_FACTORY;
-    security_param->iot_server_ip = (char *)"192.168.0.106";
-    security_param->bs_server_ip = (char *)"192.168.0.106";
-
-    security_param->iot_server_port = (char *)"5683";
-    security_param->bs_server_port = (char *)"5683";
-
-    security_param->psk_Id = NULL;
-    security_param->psk = NULL;
-    security_param->psk_len = 0;
+    handle_data_t *pHandleData = (handle_data_t *)pHandle;
 
     atiny_device_info_t device_info;
     memset(&device_info, 0, sizeof(atiny_device_info_t));
     device_info.endpoint_name = (char *)"44440003";
     device_info.manufacturer = (char *)"Agent_Tiny";
 
+    ret = atiny_init_objects(&pHandleData->atiny_params, &device_info, pHandleData);
+    TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_init_objects(...) failed");
+    
+    cleanStub(&si_mutex_create);
 
-    char *temp_ip = NULL;
-    char *temp_port = NULL;
-    bool b_need_bootstrap_flag = true;
+    ret = 0;
+    atiny_destroy(pHandle);
+    TEST_ASSERT_MSG((0 == ret), "atiny_destroy(...) failed");
+    atiny_deinit(pHandle);
+    TEST_ASSERT_MSG((0 == ret), "atiny_deinit(...) failed");
 
-    client_data_t client_data;
-    memset(&client_data, 0, sizeof(client_data_t));
-    lwm2m_context_t *lwm2m_context = NULL;
-    lwm2m_context = lwm2m_init(&client_data);
-    TEST_ASSERT_MSG((NULL != lwm2m_context), "lwm2m_init(...) failed");
+    ///////////////////////////////////// abnormal test ///////////////////////////////////
+    // atiny_init_rpt() failed
+    ret = atiny_init_objects(&pHandleData->atiny_params, &device_info, pHandleData);
+    TEST_ASSERT_MSG((ATINY_RESOURCE_NOT_ENOUGH == ret), "atiny_init_objects(...) failed");
 
-    stubInfo si_mutex_create;
+    setStub((void *)atiny_mutex_create, (void *)stub_atiny_mutex_create_ex, &si_mutex_create);
+    s_create_mutex_failed_index = 0xff;
+
+    agent_tiny_fota_init();
+    ret = atiny_init(&s_atiny_params, &pHandle);
+    TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_init(...) failed");
+    pHandleData = (handle_data_t *)pHandle;
+    
+    stubInfo si_malloc;
+    setStub((void *)lwm2m_malloc, (void *)stub_lwm2m_malloc, &si_malloc);
+
+    // lwm2m_init failed
+    s_malloc_failed_index = 0;
+    ret = atiny_init_objects(&pHandleData->atiny_params, &device_info, pHandleData);
+    TEST_ASSERT_MSG((ATINY_MALLOC_FAILED == ret), "atiny_init_objects(...) failed");
+    atiny_destroy_rpt();
+
+    // the second atiny_mutex_create() failed
+    s_malloc_failed_index = 0xff;
+    s_create_mutex_failed_index = 1;
+    ret = atiny_init_objects(&pHandleData->atiny_params, &device_info, pHandleData);
+    TEST_ASSERT_MSG((ATINY_RESOURCE_NOT_ENOUGH == ret), "atiny_init_objects(...) failed");
+    atiny_destroy_rpt();
+  
+    s_create_mutex_failed_index = 0xff;
+
+    cleanStub(&si_malloc);
+    cleanStub(&si_mutex_create);
+    
+    ret = 0;
+    atiny_destroy(pHandle);
+    TEST_ASSERT_MSG((0 == ret), "atiny_destroy(...) failed");
+    atiny_deinit(pHandle);
+    TEST_ASSERT_MSG((0 == ret), "atiny_deinit(...) failed");
+
+    //////////////////////////// get object failed   ////////////////////////////////////
     setStub((void *)atiny_mutex_create, (void *)stub_atiny_mutex_create, &si_mutex_create);
-    if (NULL != lwm2m_context)
-    {
-        lwm2m_context->observe_mutex = atiny_mutex_create();
-        if (NULL != lwm2m_context->observe_mutex)
-        {
-            atiny_get_set_bootstrap_info(NULL, NULL, &temp_ip,
-                                         &temp_port, &b_need_bootstrap_flag);
-            TEST_ASSERT_MSG((0 == ret), "atiny_get_set_bootstrap_info(...) failed");
+    stubInfo si_object;
+    
+    // get_security_object() failed
+    setStub((void *)get_security_object, (void *)stub_get_security_object, &si_object);
+    agent_tiny_fota_init();
+    ret = atiny_init(&s_atiny_params, &pHandle);
+    TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_init(...) failed");
 
-            atiny_get_set_bootstrap_info(&atiny_params, lwm2m_context, &temp_ip,
-                                         &temp_port, &b_need_bootstrap_flag);
-            TEST_ASSERT_MSG((0 == ret), "atiny_get_set_bootstrap_info(...) failed");
+    ret = atiny_init_objects(&pHandleData->atiny_params, &device_info, pHandleData);
+    TEST_ASSERT_MSG((ATINY_MALLOC_FAILED == ret), "atiny_init_objects(...) failed");
+    
+    cleanStub(&si_object);
+    
+    ret = 0;
+    atiny_destroy(pHandle);
+    TEST_ASSERT_MSG((0 == ret), "atiny_destroy(...) failed");
+    atiny_deinit(pHandle);
+    TEST_ASSERT_MSG((0 == ret), "atiny_deinit(...) failed");
 
-            security_param->bootstrap_mode = BOOTSTRAP_SEQUENCE;
-            atiny_get_set_bootstrap_info(&atiny_params, lwm2m_context, &temp_ip,
-                                         &temp_port, &b_need_bootstrap_flag);
-            TEST_ASSERT_MSG((0 == ret), "atiny_get_set_bootstrap_info(...) failed");
+    // get_server_object() failed
+    setStub((void *)get_server_object, (void *)stub_get_server_object, &si_object);
+    agent_tiny_fota_init();
+    ret = atiny_init(&s_atiny_params, &pHandle);
+    TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_init(...) failed");
 
-            security_param->bootstrap_mode = BOOTSTRAP_CLIENT_INITIATED;
-            atiny_get_set_bootstrap_info(&atiny_params, lwm2m_context, &temp_ip,
-                                         &temp_port, &b_need_bootstrap_flag);
-            TEST_ASSERT_MSG((0 == ret), "atiny_get_set_bootstrap_info(...) failed");
+    ret = atiny_init_objects(&pHandleData->atiny_params, &device_info, pHandleData);
+    TEST_ASSERT_MSG((ATINY_MALLOC_FAILED == ret), "atiny_init_objects(...) failed");
+    
+    cleanStub(&si_object);
+    
+    ret = 0;
+    atiny_destroy(pHandle);
+    TEST_ASSERT_MSG((0 == ret), "atiny_destroy(...) failed");
+    atiny_deinit(pHandle);
+    TEST_ASSERT_MSG((0 == ret), "atiny_deinit(...) failed");
 
-            security_param->bootstrap_mode = (atiny_bootstrap_type_e)0xff;
-            atiny_get_set_bootstrap_info(&atiny_params, lwm2m_context, &temp_ip,
-                                         &temp_port, &b_need_bootstrap_flag);
-            TEST_ASSERT_MSG((0 == ret), "atiny_get_set_bootstrap_info(...) failed");
-        }
-        atiny_mutex_destroy(lwm2m_context->observe_mutex);
-        lwm2m_close(lwm2m_context);
-    }
+    // get_object_device() failed
+    setStub((void *)get_object_device, (void *)stub_get_object_device, &si_object);
+    agent_tiny_fota_init();
+    ret = atiny_init(&s_atiny_params, &pHandle);
+    TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_init(...) failed");
+
+    ret = atiny_init_objects(&pHandleData->atiny_params, &device_info, pHandleData);
+    TEST_ASSERT_MSG((ATINY_MALLOC_FAILED == ret), "atiny_init_objects(...) failed");
+    
+    cleanStub(&si_object);
+    
+    ret = 0;
+    atiny_destroy(pHandle);
+    TEST_ASSERT_MSG((0 == ret), "atiny_destroy(...) failed");
+    atiny_deinit(pHandle);
+    TEST_ASSERT_MSG((0 == ret), "atiny_deinit(...) failed");
+
+    // get_object_firmware() failed
+    setStub((void *)get_object_firmware, (void *)stub_get_object_firmware, &si_object);
+    agent_tiny_fota_init();
+    ret = atiny_init(&s_atiny_params, &pHandle);
+    TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_init(...) failed");
+
+    ret = atiny_init_objects(&pHandleData->atiny_params, &device_info, pHandleData);
+    TEST_ASSERT_MSG((ATINY_MALLOC_FAILED == ret), "atiny_init_objects(...) failed");
+    
+    cleanStub(&si_object);
+    
+    ret = 0;
+    atiny_destroy(pHandle);
+    TEST_ASSERT_MSG((0 == ret), "atiny_destroy(...) failed");
+    atiny_deinit(pHandle);
+    TEST_ASSERT_MSG((0 == ret), "atiny_deinit(...) failed");
+
+    // get_object_conn_m() failed
+    setStub((void *)get_object_conn_m, (void *)stub_get_object_conn_m, &si_object);
+    agent_tiny_fota_init();
+    ret = atiny_init(&s_atiny_params, &pHandle);
+    TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_init(...) failed");
+
+    ret = atiny_init_objects(&pHandleData->atiny_params, &device_info, pHandleData);
+    TEST_ASSERT_MSG((ATINY_MALLOC_FAILED == ret), "atiny_init_objects(...) failed");
+    
+    cleanStub(&si_object);
+    
+    ret = 0;
+    atiny_destroy(pHandle);
+    TEST_ASSERT_MSG((0 == ret), "atiny_destroy(...) failed");
+    atiny_deinit(pHandle);
+    TEST_ASSERT_MSG((0 == ret), "atiny_deinit(...) failed");
+
+    // get_binary_app_data_object() failed
+    setStub((void *)get_binary_app_data_object, (void *)stub_get_binary_app_data_object, &si_object);
+    agent_tiny_fota_init();
+    ret = atiny_init(&s_atiny_params, &pHandle);
+    TEST_ASSERT_MSG((ATINY_OK == ret), "atiny_init(...) failed");
+
+    ret = atiny_init_objects(&pHandleData->atiny_params, &device_info, pHandleData);
+    TEST_ASSERT_MSG((ATINY_MALLOC_FAILED == ret), "atiny_init_objects(...) failed");
+    
+    cleanStub(&si_object);
+    
+    ret = 0;
+    atiny_destroy(pHandle);
+    TEST_ASSERT_MSG((0 == ret), "atiny_destroy(...) failed");
+    atiny_deinit(pHandle);
+    TEST_ASSERT_MSG((0 == ret), "atiny_deinit(...) failed");
+
     cleanStub(&si_mutex_create);
 }
 
-
-void TestAgenttiny::test_atiny_init_objects(void)
+void TestAgenttiny::test_atiny_set_bootstrap_sequence_state(void)
 {
-    // like test_atiny_data_change()
+    lwm2m_context_t context;
+    memset(&context, 0, sizeof(lwm2m_context_t));
+
+    int ret = 0;
+    atiny_set_bootstrap_sequence_state(NULL, NULL);
+    TEST_ASSERT_MSG((0 == ret), "atiny_set_bootstrap_sequence_state(...) failed");
+
+    atiny_set_bootstrap_sequence_state(&s_atiny_params, &context);
+    TEST_ASSERT_MSG((0 == ret), "atiny_set_bootstrap_sequence_state(...) failed");
+
+    s_atiny_params.bootstrap_mode = BOOTSTRAP_CLIENT_INITIATED;
+    atiny_set_bootstrap_sequence_state(&s_atiny_params, &context);
+    TEST_ASSERT_MSG((0 == ret), "atiny_set_bootstrap_sequence_state(...) failed");
+
+    s_atiny_params.bootstrap_mode = (atiny_bootstrap_type_e)0xff;
+    atiny_set_bootstrap_sequence_state(&s_atiny_params, &context);
+    TEST_ASSERT_MSG((0 == ret), "atiny_set_bootstrap_sequence_state(...) failed");
+
+    s_atiny_params.bootstrap_mode = BOOTSTRAP_SEQUENCE;
+    atiny_set_bootstrap_sequence_state(&s_atiny_params, &context);
+    TEST_ASSERT_MSG((0 == ret), "atiny_set_bootstrap_sequence_state(...) failed");
+
 }
 
+void TestAgenttiny::test_atiny_destroy(void)
+{
+    int ret = 0;
+    atiny_destroy(NULL);
+    TEST_ASSERT_MSG((0 == ret), "atiny_destroy(...) failed");
+    // others like test_atiny_init_objects
+}
 /* Private functions --------------------------------------------------------*/
 void TestAgenttiny::setup()
 {
+    // init atiny_params
+    atiny_security_param_t  *iot_security_param = NULL;
+    atiny_security_param_t  *bs_security_param = NULL;
+    memset(&s_atiny_params, 0, sizeof(atiny_param_t));
+    s_atiny_params.server_params.binding = (char *)"UQ";
+    s_atiny_params.server_params.life_time = 20;
+    s_atiny_params.server_params.storing_cnt = 0;
+
+    s_atiny_params.bootstrap_mode = BOOTSTRAP_FACTORY;
+
+    iot_security_param = &(s_atiny_params.security_params[0]);
+    bs_security_param = &(s_atiny_params.security_params[1]);
+
+    iot_security_param->server_ip = (char *)"192.168.0.106";
+    bs_security_param->server_ip = (char *)"192.168.0.106";
+
+    iot_security_param->server_port = (char *)"5683";
+    bs_security_param->server_port = (char *)"5683";
+
+    iot_security_param->psk_Id = NULL;
+    iot_security_param->psk = NULL;
+    iot_security_param->psk_len = 0;
+
+    bs_security_param->psk_Id = NULL;
+    bs_security_param->psk = NULL;
+    bs_security_param->psk_len = 0;
 }
 
 void TestAgenttiny::tear_down()

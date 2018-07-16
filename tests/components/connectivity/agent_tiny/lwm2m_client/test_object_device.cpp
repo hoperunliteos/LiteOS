@@ -303,6 +303,7 @@ void TestObjectDevice::test_prv_device_write()
     const char *facturer = "uuuuu";
 
     dataArray = (lwm2m_data_t *)malloc(sizeof(*dataArray));
+    memset(dataArray, 0, sizeof(*dataArray));
     TEST_ASSERT_MSG(dataArray != NULL, "dataArray malloc failed\r\n");
     testObj = get_object_device(atiny_pa, facturer);
     TEST_ASSERT_MSG(testObj != NULL, "get object device failed\r\n");

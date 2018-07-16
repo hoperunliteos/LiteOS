@@ -65,6 +65,11 @@ class TestAtinyFotaState:public Test::Suite {
     void test_atiny_fota_downloaded_state_init();
     void test_atiny_fota_updating_state_init();
     void test_atiny_fota_downloaded_state_execute_update();
+    void test_atiny_fota_idle_state_init();
+    void test_atiny_fota_idle_state_recv_notify_ack();
+    void test_atiny_fota_idle_state_int_report_result();
+    void atiny_fota_downloading_state_recv_notify_ack();
+    void test_atiny_fota_downloaded_state_recv_notify_ack();
 
   TestAtinyFotaState();
 };

@@ -42,15 +42,14 @@
 extern "C"
 {
 #include "object_comm.h"
+
+    static atiny_param_t s_atiny_params;
+    static int s_malloc_failed_index = 0;
+
     extern void copy_security_object(lwm2m_object_t *objectDest, lwm2m_object_t *objectSrc);
     extern void display_security_object(lwm2m_object_t *object);
     extern void clean_security_object(lwm2m_object_t *objectP);
-    extern lwm2m_object_t *get_security_object(uint16_t serverId,
-            const char *serverUri,
-            char *bsPskId,
-            char *psk,
-            uint16_t pskLen,
-            bool isBootstrap);
+    extern lwm2m_object_t * get_security_object(uint16_t serverId,atiny_param_t* atiny_params,lwm2m_context_t* lwm2m_context);
     extern char *security_get_uri(lwm2m_object_t *objectP, uint16_t secObjInstID);
 
     extern lwm2m_data_t *lwm2m_data_new(int size);
@@ -64,19 +63,17 @@ extern "C"
 
     static void *stub_lwm2m_malloc(size_t s)
     {
-        return NULL;
-    }
-
-    static void *stub_lwm2m_malloc_ex(size_t s)
-    {
         static int i = 0;
-        if( i++ == 0)
+        if( i++ == s_malloc_failed_index)
         {
-            void *mem = NULL;
-            mem = atiny_malloc(s);
-            return mem;
+            i = 0;
+            return NULL;
         }
-        return NULL;
+        if( s_malloc_failed_index == 0xff)
+        {
+            i = 0;
+        }
+        return atiny_malloc(s);
     }
 }
 /* Global variables ---------------------------------------------------------*/
@@ -99,39 +96,84 @@ TestObjectSecurity::~TestObjectSecurity()
 void TestObjectSecurity::test_copy_security_object(void)
 {
     uint16_t serverId = 123;
-    char *serverUri = (char *)"coap://192.168.1.106:5368";
-    bool b_need_bootstrap_flag = true;
-    char *psk_Id = NULL;
-    char *psk = NULL;
-    unsigned short psk_len = 0;
+
     lwm2m_object_t *pSrcSecurityObject = NULL;
     lwm2m_object_t *pDestSecurityObject = NULL;
+    lwm2m_context_t context;
 
-    pSrcSecurityObject = get_security_object(serverId, serverUri, psk_Id, psk, psk_len, b_need_bootstrap_flag);
+    memset(&context, 0, sizeof(lwm2m_context_t));
+
+    pSrcSecurityObject = get_security_object(serverId, &s_atiny_params, &context);
     TEST_ASSERT_MSG((pSrcSecurityObject != NULL), "get_security_object(...) failed");
+        
     pDestSecurityObject = (lwm2m_object_t *)lwm2m_malloc(sizeof(lwm2m_object_t));
     TEST_ASSERT_MSG((pDestSecurityObject != NULL), "lwm2m_malloc(...) failed");
     // p == NULL is not checked in function copy_security_object(lwm2m_object_t *, lwm2m_object_t *)
     uint8_t ret = 0;
+
+    stubInfo stub_info;
+    setStub((void *)lwm2m_malloc, (void *)stub_lwm2m_malloc, &stub_info);
+
+    s_malloc_failed_index = 0;
     copy_security_object(pDestSecurityObject, pSrcSecurityObject);
     TEST_ASSERT_MSG((ret == 0), "copy_security_object(...) failed");
 
+    s_malloc_failed_index = 1;
+    copy_security_object(pDestSecurityObject, pSrcSecurityObject);
+    TEST_ASSERT_MSG((ret == 0), "copy_security_object(...) failed");
+
+    cleanStub(&stub_info);
+
+    copy_security_object(pDestSecurityObject, pSrcSecurityObject);
+    TEST_ASSERT_MSG((ret == 0), "copy_security_object(...) failed");
+
+    clean_security_object(pDestSecurityObject);
+    clean_security_object(pSrcSecurityObject);
+
+    ////////////////////////////////////////////////
+    pSrcSecurityObject = NULL;
+    pDestSecurityObject = NULL;
+    
+    pSrcSecurityObject = get_security_object(serverId, &s_atiny_params, &context);
+    TEST_ASSERT_MSG((pSrcSecurityObject != NULL), "get_security_object(...) failed");
+        
+    pDestSecurityObject = (lwm2m_object_t *)lwm2m_malloc(sizeof(lwm2m_object_t));
+    TEST_ASSERT_MSG((pDestSecurityObject != NULL), "lwm2m_malloc(...) failed");
+
+    security_instance_t *instanceSrc = (security_instance_t *)pSrcSecurityObject->instanceList;
+    if(instanceSrc != NULL){
+        instanceSrc->securityMode = LWM2M_SECURITY_MODE_PRE_SHARED_KEY;
+        char publicIdentity[] = "abcd";
+        char secretKey[] = "123456";
+        uint16_t publicIdLen = sizeof(publicIdentity);
+        uint16_t secretKeyLen = sizeof(secretKey);
+        instanceSrc->publicIdentity = (char*)lwm2m_malloc(publicIdLen);
+        instanceSrc->secretKey = (char*)lwm2m_malloc(secretKeyLen);
+        memcpy(instanceSrc->publicIdentity, publicIdentity, publicIdLen);
+        memcpy(instanceSrc->secretKey, secretKey, secretKeyLen);
+        instanceSrc->publicIdLen = publicIdLen;
+        instanceSrc->secretKeyLen = secretKeyLen;
+    }
+    copy_security_object(pDestSecurityObject, pSrcSecurityObject);
+    TEST_ASSERT_MSG((ret == 0), "copy_security_object(...) failed");
+    
     clean_security_object(pDestSecurityObject);
     clean_security_object(pSrcSecurityObject);
 }
 void TestObjectSecurity::test_display_security_object(void)
 {
     uint16_t serverId = 123;
-    char *serverUri = (char *)"coap://192.168.1.106:5368";
-    bool b_need_bootstrap_flag = true;
-    char *psk_Id = NULL;
-    char *psk = NULL;
-    unsigned short psk_len = 0;
+
     lwm2m_object_t *pSecurityObject = NULL;
+    lwm2m_context_t context;
+
+    memset(&context, 0, sizeof(lwm2m_context_t));
 
     // p == NULL is not checked in function display_security_object(lwm2m_object_t *)
-    pSecurityObject = get_security_object(serverId, serverUri, psk_Id, psk, psk_len, b_need_bootstrap_flag);
+
+    pSecurityObject = get_security_object(serverId, &s_atiny_params, &context);
     TEST_ASSERT_MSG((pSecurityObject != NULL), "get_security_object(...) failed");
+    
     uint8_t ret = 0;
     display_security_object(pSecurityObject);
     TEST_ASSERT_MSG((ret == 0), "display_security_object(...) failed");
@@ -141,23 +183,17 @@ void TestObjectSecurity::test_display_security_object(void)
 void TestObjectSecurity::test_clean_security_object(void)
 {
     uint16_t serverId = 123;
-    char *serverUri = (char *)"coap://192.168.1.106:5368";
-    bool b_need_bootstrap_flag = true;
-    char *psk_Id = NULL;
-    char *psk = NULL;
-    unsigned short psk_len = 0;
-    lwm2m_object_t *pSecurityObject = NULL;
 
-    stubInfo stub_info;
-    setStub((void *)lwm2m_malloc, (void *)stub_lwm2m_malloc, &stub_info);
-    pSecurityObject = get_security_object(serverId, serverUri, psk_Id, psk, psk_len, b_need_bootstrap_flag);
-    TEST_ASSERT_MSG((pSecurityObject == NULL), "get_security_object(...) failed");
-    cleanStub(&stub_info);
+    lwm2m_object_t *pSecurityObject = NULL;
+    lwm2m_context_t context;
+
+    memset(&context, 0, sizeof(lwm2m_context_t));
+
     uint8_t ret = 0;
     clean_security_object(pSecurityObject);
     TEST_ASSERT_MSG((ret == 0), "clean_security_object(...) failed");
 
-    pSecurityObject = get_security_object(serverId, serverUri, psk_Id, psk, psk_len, b_need_bootstrap_flag);
+    pSecurityObject = get_security_object(serverId, &s_atiny_params, &context);
     TEST_ASSERT_MSG((pSecurityObject != NULL), "get_security_object(...) failed");
     clean_security_object(pSecurityObject);
     TEST_ASSERT_MSG((ret == 0), "clean_security_object(...) failed");
@@ -167,35 +203,96 @@ void TestObjectSecurity::test_get_security_object(void)
 {
     uint16_t serverId = 123;
     char *serverUri = (char *)"coap://192.168.1.106:5368";
-    bool b_need_bootstrap_flag = true;
-    char *psk_Id = NULL;
-    char *psk = NULL;
-    unsigned short psk_len = 0;
-    lwm2m_object_t *pSecurityObject = NULL;
 
+    lwm2m_object_t *pSecurityObject = NULL;
+    lwm2m_context_t context;
+
+    memset(&context, 0, sizeof(lwm2m_context_t));
+
+    /***************** test malloc failed *********************************/
     stubInfo stub_info;
     setStub((void *)lwm2m_malloc, (void *)stub_lwm2m_malloc, &stub_info);
-    pSecurityObject = get_security_object(serverId, serverUri, psk_Id, psk, psk_len, b_need_bootstrap_flag);
-    TEST_ASSERT_MSG((pSecurityObject == NULL), "get_security_object(...) failed");
-    cleanStub(&stub_info);
-    clean_security_object(pSecurityObject);
 
-    setStub((void *)lwm2m_malloc, (void *)stub_lwm2m_malloc_ex, &stub_info);
-    pSecurityObject = get_security_object(serverId, serverUri, psk_Id, psk, psk_len, b_need_bootstrap_flag);
+    s_malloc_failed_index = 0;
+    pSecurityObject = get_security_object(serverId, &s_atiny_params, &context);
     TEST_ASSERT_MSG((pSecurityObject == NULL), "get_security_object(...) failed");
-    cleanStub(&stub_info);
 
-    pSecurityObject = get_security_object(serverId, serverUri, psk_Id, psk, psk_len, b_need_bootstrap_flag);
+    s_atiny_params.bootstrap_mode = BOOTSTRAP_CLIENT_INITIATED;
+    pSecurityObject = get_security_object(serverId, &s_atiny_params, &context);
+    TEST_ASSERT_MSG((pSecurityObject == NULL), "get_security_object(...) failed");
+
+    s_atiny_params.bootstrap_mode = BOOTSTRAP_SEQUENCE;
+    pSecurityObject = get_security_object(serverId, &s_atiny_params, &context);
+    TEST_ASSERT_MSG((pSecurityObject == NULL), "get_security_object(...) failed");
+
+    context.bs_sequence_state = BS_SEQUENCE_STATE_FACTORY;
+    pSecurityObject = get_security_object(serverId, &s_atiny_params, &context);
+    TEST_ASSERT_MSG((pSecurityObject == NULL), "get_security_object(...) failed");
+
+    s_atiny_params.bootstrap_mode = (atiny_bootstrap_type_e)0xff;
+    pSecurityObject = get_security_object(serverId, &s_atiny_params, &context);
+    TEST_ASSERT_MSG((pSecurityObject == NULL), "get_security_object(...) failed");
+
+    s_atiny_params.bootstrap_mode = BOOTSTRAP_FACTORY;
+    s_malloc_failed_index = 1;
+    pSecurityObject = get_security_object(serverId, &s_atiny_params, &context);
+    TEST_ASSERT_MSG((pSecurityObject == NULL), "get_security_object(...) failed");
+
+    s_malloc_failed_index = 2;
+    pSecurityObject = get_security_object(serverId, &s_atiny_params, &context);
+    TEST_ASSERT_MSG((pSecurityObject == NULL), "get_security_object(...) failed");
+
+    s_atiny_params.bootstrap_mode = BOOTSTRAP_CLIENT_INITIATED;
+    pSecurityObject = get_security_object(serverId, &s_atiny_params, &context);
+    TEST_ASSERT_MSG((pSecurityObject == NULL), "get_security_object(...) failed");
+
+    s_atiny_params.bootstrap_mode = BOOTSTRAP_SEQUENCE;
+    pSecurityObject = get_security_object(serverId, &s_atiny_params, &context);
+    TEST_ASSERT_MSG((pSecurityObject == NULL), "get_security_object(...) failed");
+
+    s_malloc_failed_index = 3;
+    s_atiny_params.bootstrap_mode = BOOTSTRAP_FACTORY;
+    pSecurityObject = get_security_object(serverId, &s_atiny_params, &context);
     TEST_ASSERT_MSG((pSecurityObject != NULL), "get_security_object(...) failed");
     clean_security_object(pSecurityObject);
 
-    // psk test
-    unsigned char g_psk_value[16] = {0x02, 0x77, 0x68, 0xca, 0x0b, 0xf5, 0xdf, 0xba, 0x46, 0x43, 0x25, 0xdd, 0x4b, 0xe7, 0x0a, 0x9d};
-    psk_Id = (char *)"88889999";
-    psk = (char *)g_psk_value;
-    psk_len = 16;
-    serverUri = (char *)"coaps://192.168.1.106:5368";
-    pSecurityObject = get_security_object(serverId, serverUri, psk_Id, psk, psk_len, b_need_bootstrap_flag);
+// WITH DTLS
+    atiny_security_param_t  *iot_security_param = NULL;
+    atiny_security_param_t  *bs_security_param = NULL;
+    iot_security_param = &(s_atiny_params.security_params[0]);
+    bs_security_param = &(s_atiny_params.security_params[1]);
+
+    iot_security_param->server_port = (char*)"5684";
+    bs_security_param->server_port = (char*)"5684";
+
+#define IOT_PSK_VALUE_LENGTH    12
+#define BS_PSK_VALUE_LENGTH     12
+
+    char* endpoint_name_s = (char*)"11110001";
+    char* endpoint_name_iots = (char*)"66667777";
+    char* endpoint_name_bs = (char*)"22224444";
+    unsigned char psk_iot_value[IOT_PSK_VALUE_LENGTH] = {0x33,0x33,0x33,0x33,0x33,0x33,0x33,0x33,0x33,0x33,0x33,0x33};  //0x33 -> 0x32
+    unsigned char psk_bs_value[BS_PSK_VALUE_LENGTH] = {0x33,0x33,0x33,0x33,0x33,0x33,0x33,0x33,0x33,0x33,0x33,0x33};
+
+    iot_security_param->psk_Id = endpoint_name_iots;
+    iot_security_param->psk = (char*)psk_iot_value;
+    iot_security_param->psk_len = IOT_PSK_VALUE_LENGTH;
+
+    bs_security_param->psk_Id = endpoint_name_bs;
+    bs_security_param->psk = (char*)psk_bs_value;
+    bs_security_param->psk_len = BS_PSK_VALUE_LENGTH;
+
+    s_malloc_failed_index = 3;
+    pSecurityObject = get_security_object(serverId, &s_atiny_params, &context);
+    TEST_ASSERT_MSG((pSecurityObject == NULL), "get_security_object(...) failed");
+
+    s_malloc_failed_index = 4;
+    pSecurityObject = get_security_object(serverId, &s_atiny_params, &context);
+    TEST_ASSERT_MSG((pSecurityObject == NULL), "get_security_object(...) failed");
+
+    cleanStub(&stub_info);
+    
+    pSecurityObject = get_security_object(serverId, &s_atiny_params, &context);
     TEST_ASSERT_MSG((pSecurityObject != NULL), "get_security_object(...) failed");
     clean_security_object(pSecurityObject);
 }
@@ -203,22 +300,23 @@ void TestObjectSecurity::test_get_security_object(void)
 void TestObjectSecurity::test_security_get_uri(void)
 {
     uint16_t serverId = 123;
-    char *serverUri = (char *)"coap://192.168.1.106:5368";
-    bool b_need_bootstrap_flag = true;
-    char *psk_Id = NULL;
-    char *psk = NULL;
-    unsigned short psk_len = 0;
     lwm2m_object_t *pSecurityObject = NULL;
+    lwm2m_context_t context;
 
-    pSecurityObject = get_security_object(serverId, serverUri, psk_Id, psk, psk_len, b_need_bootstrap_flag);
-    TEST_ASSERT_MSG((pSecurityObject != NULL), "get_security_object(...) failed");
+    memset(&context, 0, sizeof(lwm2m_context_t));
+
+    pSecurityObject = get_security_object(serverId, &s_atiny_params, &context);
+    TEST_ASSERT_MSG((pSecurityObject != NULL && pSecurityObject->readFunc != NULL), "get_security_object(...) failed");
 
     char *uri = NULL;
+    uri = security_get_uri(pSecurityObject, 1);
+    TEST_ASSERT_MSG((uri == NULL), "security_get_uri(...) failed");
     uri = security_get_uri(pSecurityObject, 0);
     TEST_ASSERT_MSG((uri != NULL), "security_get_uri(...) failed");
     if(uri != NULL)
     {
         lwm2m_free(uri);
+        uri = NULL;
     }
 
     clean_security_object(pSecurityObject);
@@ -227,15 +325,13 @@ void TestObjectSecurity::test_security_get_uri(void)
 void TestObjectSecurity::test_prv_security_read(void)
 {
     uint16_t serverId = 123;
-    char *serverUri = (char *)"coap://192.168.1.106:5368";
-    bool b_need_bootstrap_flag = true;
-    char *psk_Id = NULL;
-    char *psk = NULL;
-    unsigned short psk_len = 0;
     lwm2m_object_t *pSecurityObject = NULL;
+    lwm2m_context_t context;
 
-    pSecurityObject = get_security_object(serverId, serverUri, psk_Id, psk, psk_len, b_need_bootstrap_flag);
-    TEST_ASSERT_MSG((pSecurityObject != NULL), "get_security_object(...) failed");
+    memset(&context, 0, sizeof(lwm2m_context_t));
+
+    pSecurityObject = get_security_object(serverId, &s_atiny_params, &context);
+    TEST_ASSERT_MSG((pSecurityObject != NULL && pSecurityObject->readFunc != NULL), "get_security_object(...) failed");
 
     // read test
     int num = 0;
@@ -251,4 +347,39 @@ void TestObjectSecurity::test_prv_security_read(void)
     clean_security_object(pSecurityObject);
 }
 /* Private functions --------------------------------------------------------*/
+void TestObjectSecurity::setup()
+{
+    // init atiny_params
+    atiny_security_param_t  *iot_security_param = NULL;
+    atiny_security_param_t  *bs_security_param = NULL;
+    memset(&s_atiny_params, 0, sizeof(atiny_param_t));
+    s_atiny_params.server_params.binding = (char *)"UQ";
+    s_atiny_params.server_params.life_time = 20;
+    s_atiny_params.server_params.storing_cnt = 0;
+
+    s_atiny_params.bootstrap_mode = BOOTSTRAP_FACTORY;
+
+    iot_security_param = &(s_atiny_params.security_params[0]);
+    bs_security_param = &(s_atiny_params.security_params[1]);
+
+    iot_security_param->server_ip = (char *)"192.168.0.106";
+    bs_security_param->server_ip = (char *)"192.168.0.106";
+
+    iot_security_param->server_port = (char *)"5683";
+    bs_security_param->server_port = (char *)"5683";
+
+    iot_security_param->psk_Id = NULL;
+    iot_security_param->psk = NULL;
+    iot_security_param->psk_len = 0;
+
+    bs_security_param->psk_Id = NULL;
+    bs_security_param->psk = NULL;
+    bs_security_param->psk_len = 0;
+    
+}
+
+void TestObjectSecurity::tear_down()
+{
+    
+}
 

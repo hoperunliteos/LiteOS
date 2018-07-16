@@ -46,7 +46,6 @@ INCLUDES:= \
     -I$(HW_LITEOSDIR)/components/connectivity/agent_tiny/firmware_update/ \
 	-I$(HW_LITEOSDIR)/components/connectivity/agent_tiny/lwm2m_client/ \
     -I$(HW_LITEOSDIR)/components/connectivity/agent_tiny/mqtt_client/ \
-	-I$(HW_LITEOSDIR)/targets/STM32F767ZI_NUCLEO/Drivers/osadapter/ \
     -I$(HW_LITEOSDIR)/components/connectivity/at_frame/ \
 	-I$(HW_LITEOSDIR)/components/connectivity/lwm2m/core/ \
     -I$(HW_LITEOSDIR)/components/connectivity/lwm2m/core/er-coap-13 \
@@ -64,14 +63,15 @@ INCLUDES:= \
 	-I$(HW_LITEOSDIR)/kernel/base/include/ \
 	-I$(HW_LITEOSDIR)/kernel/include/ \
 	-I$(HW_LITEOSDIR)/kernel/extended/include/ \
-	-I$(HW_LITEOSDIR)/targets/STM32F767ZI_NUCLEO/OS_CONFIG/ \
-	-I$(HW_LITEOSDIR)/targets/STM32F767ZI_NUCLEO/Hardware/Inc \
-	-I$(HW_LITEOSDIR)/targets/STM32F767ZI_NUCLEO/Drivers/STM32F7xx_HAL_Driver/Inc/ \
-	-I$(HW_LITEOSDIR)/targets/STM32F767ZI_NUCLEO/Drivers/STM32F7xx_HAL_Driver/Inc/Legacy/ \
+	-I$(HW_LITEOSDIR)/targets/Cloud_wifi_STM32F767ZI_NUCLEO/OS_CONFIG/ \
+	-I$(HW_LITEOSDIR)/targets/Cloud_wifi_STM32F767ZI_NUCLEO/Hardware/Inc \
+	-I$(HW_LITEOSDIR)/targets/Cloud_wifi_STM32F767ZI_NUCLEO/Drivers/STM32F7xx_HAL_Driver/Inc/ \
+	-I$(HW_LITEOSDIR)/targets/Cloud_wifi_STM32F767ZI_NUCLEO/Drivers/STM32F7xx_HAL_Driver/Inc/Legacy/ \
+	-I$(HW_LITEOSDIR)/targets/Cloud_wifi_STM32F767ZI_NUCLEO/Drivers/osadapter/ \
 	-I$(HW_LITEOSDIR)/tests/common/ \
     -I$(HW_LITEOSDIR)/drivers/devices/wifi/esp8266_anylink_spi/ \
     -I$(HW_LITEOSDIR)/drivers/devices/wifi/esp8266_anylink_spi/Cortex-M7_lib/ \
-    -I$(HW_LITEOSDIR)/targets/STM32F767ZI_NUCLEO/Inc/ 
+    -I$(HW_LITEOSDIR)/targets/Cloud_wifi_STM32F767ZI_NUCLEO/Inc/ 
     
 
 

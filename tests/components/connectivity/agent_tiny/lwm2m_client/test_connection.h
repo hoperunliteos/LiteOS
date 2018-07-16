@@ -56,7 +56,7 @@ class TestConnection: public Test::Suite {
   void test_lwm2m_close_connection();
   void test_lwm2m_buffer_recv();
   void test_connection_free();
-
+  void test_lwm2m_register_connection_err_notify();
   TestConnection();
   
 };
