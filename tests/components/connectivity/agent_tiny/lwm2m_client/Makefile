@@ -6,6 +6,9 @@ AR=ar
 
 BUILD_DIR=build
 
+# file match pattern
+# eg: "*wifi*.c" -- match the file that contains *wifi*.c in the path
+# if not use this, please define as "*"
 FILE_PATTERN = "*lwm2m_client*.c"
 
 FOR32 := true

@@ -457,7 +457,7 @@ void TestAtinyFotaState::test_atiny_fota_downloaded_state_recv_notify_ack()
     setStub((void *)lwm2m_resource_value_changed, (void *)stub_lwm2m_resource_value_changed, &si1);
     thi.manager->rpt_state = ATINY_FOTA_DOWNLOADING;
     result = thi_para.interface.recv_notify_ack(&thi, status);
-    TEST_ASSERT(result == ATINY_OK);
+    TEST_ASSERT(result == ATINY_ERR);
     cleanStub(&si3);
     
     stubInfo si;

@@ -289,6 +289,13 @@ int  lwip_shutdown(int s, int how)
 //    return -1;
 //}
 
+uint32_t sys_now(void)
+{
+    static int i = 0;
+    return i++;
+}
+
+
 /*###################################     OTHERS    #######################################*/
 
 void delayus(uint32_t usec)
