@@ -32,61 +32,24 @@
  * applicable export control laws and regulations.
  *---------------------------------------------------------------------------*/
 
-#ifndef __NB_NEUL_BC95_H__
-#define __NB_NEUL_BC95_H__
+#ifndef __TEST_NB_API__
+#define __TEST_NB_API__
+#include <cpptest.h>
+#include "stub.h"
 
-#include "atadapter.h"
+class TestNBApi:public Test::Suite {
+    
+  protected:
+    void setup();
+    void tear_down();
 
-//#define CLOUD_IP  "218.4.33.71,5683"
-#define AT_NB_LINE_END 			"\r\n"
-
-#define AT_NB_reboot    		"AT+NRB\r"
-#define AT_NB_hw_detect    		"AT+CFUN?\r"
-#define AT_NB_get_auto_connect    		"AT+NCONFIG?\r"
-#define AT_CMD_PREFIX      "+NNMI:"
-
-#define AT_MODU_NAME        "nb_neul95"
-#define AT_USART_PORT       3
-#define AT_BUARDRATE        9600
-#define AT_CMD_TIMEOUT      10000    //ms
-#define AT_MAX_LINK_NUM     4
-#define MAX_AT_USERDATA_LEN 2048
-
-#define NB_STAT_LOCALPORT 56
-#define AT_LINE_END 		"\r\n"
-#define AT_CMD_BEGIN		"\r\n"
-#define AT_DATAF_PREFIX      "+NSONMI"
-#define MAX_SOCK_NUM 5
-typedef struct _remote_info_t
-{
-    int socket;
-    unsigned short port;
-    char ip[16];
-}remote_info;//ÂêéÁª≠ÂàõÂª∫socketÊó∂ÈúÄË¶ÅËØ•struct‰øùÂ≠ò
-
-
-int str_to_hex(const char *bufin, int len, char *bufout);
-int32_t nb_reboot(void);
-int32_t nb_hw_detect(void);
-int32_t nb_err_cue(void);
-int32_t nb_set_cdpserver(char* host, char* port);
-int32_t nb_send_psk(char* pskid, char* psk);
-int32_t nb_send_payload(const char* buf, int len);
-int32_t nb_get_auto_connect(void);
-//int32_t nb_send_coap_payload(int32_t id ,const uint8_t *buf, uint32_t len);//Œﬁ
-//int neul_bc95_udp_read(int socket,char *buf, int maxrlen, int mode);//Œﬁ
-int32_t nb_check_csq(void);
-int nb_query_ip(void);
-int32_t nb_get_netstat(void);
-int32_t nb_create_udpsock(const int8_t * host, int port, int32_t proto);
-//int32_t nb_udp_recv(void * arg, int8_t * buf, int32_t len);//Œﬁ
-
-int32_t nb_connect(const int8_t * host, const int8_t *port, int32_t proto);
-int32_t nb_send(int32_t id , const uint8_t  *buf, uint32_t len);
-int32_t nb_recv(int32_t id , uint8_t  *buf, uint32_t len);
-int32_t nb_recv_timeout(int32_t id , uint8_t  *buf, uint32_t len, int32_t timeout);
-int32_t nb_close(int32_t socket);
-int32_t nb_recv_cb(int32_t id);
-int32_t nb_deinit(void);
+  public:
+    void test_nb_data_ioctl();
+    void test_los_nb_init();
+    void test_los_nb_report();
+    void test_los_nb_notify();
+    void test_los_nb_deinit();
+    TestNBApi();
+};
 
 #endif
