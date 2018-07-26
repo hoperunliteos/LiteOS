@@ -6,30 +6,31 @@ AR=ar
 
 BUILD_DIR=build
 
-FILE_PATTERN = "*wifi*.c"
+FILE_PATTERN = "*Cortex-M7_lib*.c"
 
 FOR32 := true
 BIN:= bin
-LIB:= $(BUILD_DIR)/libliteos.a
+LIB:= $(BUILD_DIR)/libwifispi.a
 	
-HW_LITEOSDIR:=../../../..
+HW_LITEOSDIR:=../../../../..
 ifeq ($(FOR32), true)
 CFLAGS := -m32  -march=i386 -mtune=i386
 else
 CFLAGS := 
 endif
 CFLAGS += -g
-CFLAGS += -DSTM32F429xx -DUSE_HAL_DRIVER -DUSE_MBED_TLS -DMBEDTLS_CONFIG_FILE="<los_mbedtls_config.h>" -DLWM2M_LITTLE_ENDIAN -DLWM2M_CLIENT_MODE -DNDEBUG -DWITH_AT_FRAMEWORK -DUSE_ESP8266
+CFLAGS += -DSTM32F767xx -DUSE_HAL_DRIVER -DUSE_MBED_TLS -DMBEDTLS_CONFIG_FILE="<los_mbedtls_config.h>" -DLWM2M_LITTLE_ENDIAN -DLWM2M_CLIENT_MODE -DNDEBUG -DWITH_AT_FRAMEWORK -DUNIT_TEST
 CFLAGS += -DLWIP_TIMEVAL_PRIVATE=0 -DBYTE_ORDER -DLWIP_COMPAT_SOCKETS=0
 CFLAGS += -fprofile-arcs -ftest-coverage
 GCOV_FLAGS := --rc lcov_branch_coverage=1 --rc  genhtml_branch_coverage=1
 
 #compile dynamic library of of liteos module
-SRC+= $(wildcard *c, $(HW_LITEOSDIR)/components/connectivity/agent_tiny/osadapter/*.c) 
-SRC+= $(wildcard $(HW_LITEOSDIR)/components/connectivity/at_frame/at_api_interface.c) 
-SRC+= $(wildcard $(HW_LITEOSDIR)/components/connectivity/at_frame/atadapter.c) 
-SRC+= $(wildcard $(HW_LITEOSDIR)/drivers/devices/wifi/*.c) 
-SRC+= $(wildcard $(HW_LITEOSDIR)/tests/common/*.c)
+#SRC+= $(HW_LITEOSDIR)/targets/STM32F767ZI_NUCLEO/Drivers/osadapter/atiny_adapter.c
+#SRC+= $(wildcard $(HW_LITEOSDIR)/components/connectivity/at_frame/at_api_interface.c) 
+#SRC+= $(wildcard $(HW_LITEOSDIR)/components/connectivity/at_frame/atadapter.c) 
+SRC+= $(HW_LITEOSDIR)/drivers/devices/wifi/esp8266_anylink_spi/Cortex-M7_lib/M8266_WIFI_SPI.c 
+SRC+= $(HW_LITEOSDIR)/tests/common/stub.c
+
 
 LIB_OBJ:=$(addprefix $(BUILD_DIR)/, $(notdir $(patsubst %.c, %.o, $(SRC))))
 vpath %.c $(sort $(dir $(SRC)))
@@ -37,15 +38,14 @@ vpath %.c $(sort $(dir $(SRC)))
 INCLUDES:= \
     -I$(HW_LITEOSDIR)/arch/arm/common/cmsis/ \
 	-I$(HW_LITEOSDIR)/arch/arm/arm-m/include/ \
-	-I$(HW_LITEOSDIR)/arch/arm/arm-m/cortex-m4/ \
+	-I$(HW_LITEOSDIR)/arch/arm/arm-m/cortex-m7/ \
 	-I$(HW_LITEOSDIR)/components/cmsis/ \
+	-I$(HW_LITEOSDIR)/components/cmsis/2.0/ \
 	-I$(HW_LITEOSDIR)/components/connectivity/agent_tiny/comm/include/ \
     -I$(HW_LITEOSDIR)/components/connectivity/agent_tiny/examples/ \
     -I$(HW_LITEOSDIR)/components/connectivity/agent_tiny/firmware_update/ \
 	-I$(HW_LITEOSDIR)/components/connectivity/agent_tiny/lwm2m_client/ \
-	-I$(HW_LITEOSDIR)/components/connectivity/agent_tiny/lwm2m_client/fota/ \
     -I$(HW_LITEOSDIR)/components/connectivity/agent_tiny/mqtt_client/ \
-	-I$(HW_LITEOSDIR)/components/connectivity/agent_tiny/osadapter/ \
     -I$(HW_LITEOSDIR)/components/connectivity/at_frame/ \
 	-I$(HW_LITEOSDIR)/components/connectivity/lwm2m/core/ \
     -I$(HW_LITEOSDIR)/components/connectivity/lwm2m/core/er-coap-13 \
@@ -63,13 +63,16 @@ INCLUDES:= \
 	-I$(HW_LITEOSDIR)/kernel/base/include/ \
 	-I$(HW_LITEOSDIR)/kernel/include/ \
 	-I$(HW_LITEOSDIR)/kernel/extended/include/ \
-	-I$(HW_LITEOSDIR)/targets/Cloud_STM32F429IGTx_FIRE/OS_CONFIG/ \
-	-I$(HW_LITEOSDIR)/targets/Cloud_STM32F429IGTx_FIRE/Inc/ \
-	-I$(HW_LITEOSDIR)/targets/Cloud_STM32F429IGTx_FIRE/Hardware/Inc \
-	-I$(HW_LITEOSDIR)/targets/Cloud_STM32F429IGTx_FIRE/Drivers/STM32F4xx_HAL_Driver/Inc/ \
-	-I$(HW_LITEOSDIR)/targets/Cloud_STM32F429IGTx_FIRE/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy/ \
+	-I$(HW_LITEOSDIR)/targets/Cloud_wifi_STM32F767ZI_NUCLEO/OS_CONFIG/ \
+	-I$(HW_LITEOSDIR)/targets/Cloud_wifi_STM32F767ZI_NUCLEO/Hardware/Inc \
+	-I$(HW_LITEOSDIR)/targets/Cloud_wifi_STM32F767ZI_NUCLEO/Drivers/STM32F7xx_HAL_Driver/Inc/ \
+	-I$(HW_LITEOSDIR)/targets/Cloud_wifi_STM32F767ZI_NUCLEO/Drivers/STM32F7xx_HAL_Driver/Inc/Legacy/ \
+	-I$(HW_LITEOSDIR)/targets/Cloud_wifi_STM32F767ZI_NUCLEO/Drivers/osadapter/ \
 	-I$(HW_LITEOSDIR)/tests/common/ \
-    -I$(HW_LITEOSDIR)/drivers/devices/wifi/ 
+    -I$(HW_LITEOSDIR)/drivers/devices/wifi/esp8266_anylink_spi/ \
+    -I$(HW_LITEOSDIR)/drivers/devices/wifi/esp8266_anylink_spi/Cortex-M7_lib/ \
+    -I$(HW_LITEOSDIR)/targets/Cloud_wifi_STM32F767ZI_NUCLEO/Inc/ 
+    
 
 
 CPP_SRC := $(wildcard *.cpp)
@@ -89,7 +92,7 @@ TEST_GCNO+=$(patsubst %.o, %.gcno, $(C_OBJ))
 TEST_GCNO+=$(patsubst %.o, %.gcno, $(LIB_OBJ))
 
 $(BIN):$(C_OBJ) $(CPP_OBJ)
-	$(CPP) $(CFLAGS) $(INCLUDES) -o $@ $^ -lliteos -L$(BUILD_DIR) -lcpptest -lpthread
+	$(CPP) $(CFLAGS) $(INCLUDES) -o $@ $^ -lwifispi -L$(BUILD_DIR) -lcpptest -lpthread
 
 $(CPP_OBJ):$(BUILD_DIR)/%.o:%.cpp
 	$(CPP) -c $< $(INCLUDES) $(CFLAGS) -o $@
@@ -111,7 +114,7 @@ clean:
 	rm -rf $(BUILD_DIR) bin gcov *.htm *.log
 
 run:
-	./$(BIN)
+	./bin
 
 cov:
 	mkdir -p gcov

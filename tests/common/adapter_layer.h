@@ -115,6 +115,7 @@ extern int dtls_write(mbedtls_ssl_context *ssl, const unsigned char *buf, size_t
 /*###################################     LWIP    #######################################*/
 extern int lwip_fcntl(int s, int cmd, int val);
 extern int lwip_shutdown(int s, int how);
+extern uint32_t sys_now(void);
 
 
 /*###################################     OTHERS    #######################################*/
