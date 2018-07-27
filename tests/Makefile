@@ -10,7 +10,8 @@ SUB_DIR := \
 	$(TOP_DIR)/drivers/devices/wifi/esp8266_anylink_spi \
 	$(TOP_DIR)/drivers/devices/nb
 	$(TOP_DIR)/components/connectivity/fota/ota \
-	$(TOP_DIR)/components/connectivity/fota/utility 
+	$(TOP_DIR)/components/connectivity/fota/utility \
+	$(TOP_DIR)/components/connectivity/fota/fota_package_storage_device \
 
 GCOV_INFO_SUFFIX := /gcov/gcov.info 
 	
